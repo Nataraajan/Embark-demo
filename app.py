@@ -1,5 +1,3 @@
-import io
-import json
 from dataclasses import asdict
 from html import escape
 from pathlib import Path
@@ -298,14 +296,4 @@ st.download_button(
     help='Generates your current scenario with auditable formulas, then downloads automatically.',
 )
 st.caption('Editable assumptions, channel builds and linked formulas. Allow about 15 seconds for your download to start.')
-out=io.BytesIO()
-import zipfile
-with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
-    z.writestr('monthly_forecast.csv',f.to_csv(index=False))
-    z.writestr('channel_forecast.csv',ch.to_csv(index=False))
-    z.writestr('fixed_budget.csv',b.to_csv(index=False))
-    z.writestr('assumptions.json',json.dumps({'financial':asdict(d),'channels':channels.to_dict(orient='records'),'ltv_discount_rate':discount/100},indent=2))
-    z.writestr('unit_economics.csv',eco.drop(columns=['10-year LTV']).to_csv(index=False))
-    z.writestr('README.txt','Illustrative interview demonstration. CAD. All operating inputs synthetic. Jan-Jun 2026 simulated actuals; forecasts thereafter. CSV files are values; see planning_model.py and the Model & definitions page for calculations.')
-st.download_button('Download current planning data',out.getvalue(),'embark-planning-data.zip','application/zip')
 st.caption('Independent FP&A demonstration · illustrative data throughout · changing assumptions recalculates all forecast pages')
