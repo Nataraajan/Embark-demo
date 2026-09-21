@@ -295,5 +295,5 @@ st.download_button(
     key='download_excel', on_click='ignore',
     help='Generates your current scenario with auditable formulas, then downloads automatically.',
 )
-st.caption('Editable assumptions, channel builds and linked formulas. Allow about 15 seconds for your download to start.')
+st.caption('Editable assumptions, channel builds and same-sheet Forecast calculations. Allow about 15 seconds for your download to start.')
 st.caption('Independent FP&A demonstration · illustrative data throughout · changing assumptions recalculates all forecast pages')

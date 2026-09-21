@@ -134,10 +134,33 @@ def build_excel(d, channels, discount=.1, months=60):
     mappings={8:'Impressions',9:'Leads',10:'Opportunities',11:'Funded_accounts',12:'Marketing',14:'Beginning_accounts',15:'Account_exits',16:'Active_accounts',17:'Monthly_ARPA',19:'Beginning_AUM',20:'Contributions',21:'Redemptions',22:'Market_return',23:'Fee_base',24:'Revenue',25:'Ending_AUM',27:'Revenue_less_marketing'}
     sums={8:20,9:21,10:22,11:23,12:8,15:31,16:30,19:36,20:32,21:33,22:34,23:35,24:28,25:29}
     for r,label in mappings.items():summary.write(r-1,0,label.replace('_',' '),total if r in [11,16,24,25,27] else None)
+    summary.write('A13','Weighted close rate')
+    summary.write('A18','Annual management fee')
+    summary.merge_range('A43:L43','Channel inputs supporting the weighted close rate',band)
+    for i,name in enumerate(names[2:6]):
+        summary.write(44+i,0,f'{name}: opportunities')
+        summary.write(49+i,0,f'{name}: close rate')
+    summary.merge_range('A55:L56','Weighted close rate uses channel opportunities and close-rate assumptions below. It is not calculated backwards from funded accounts. Fee base remains linked to cohort schedules because account maturity changes which assets earn fees.',note)
+    summary.write_comment('A23','Sum of eligible cohort fee bases. Accounts reaching maturity withdraw their assets and earn no fee in that month; a simple average of total opening and closing AUM would not preserve that timing.')
     for m in range(months):
         c=m+7;L=col(c-1);P=col(c-2)
+        opportunities=[];close_rates=[]
+        for i,name in enumerate(names[2:6]):
+            opportunities.append(vals[(name,22,c)])
+            close_rates.append(vals[(name,13,c)])
+            put(summary,45+i,c,opportunities[-1],f"'{name}'!{L}22")
+            put(summary,50+i,c,close_rates[-1],f"'{name}'!{L}13",True)
+        weighted=sum(o*r for o,r in zip(opportunities,close_rates))/sum(opportunities) if sum(opportunities) else 0
+        put(summary,13,c,weighted,f'IF({L}10=0,0,SUMPRODUCT({L}45:{L}48,{L}50:{L}53)/{L}10)',True)
+        put(summary,18,c,BASE.fee if m<6 else d.fee,f'Assumptions!{L}27',True)
         for r,label in mappings.items():
             if r==8:form=f"'Paid search'!{L}20+'Paid social'!{L}20"
+            elif r==10:form=f'SUM({L}45:{L}48)'
+            elif r==11:form=f'{L}10*{L}13'
+            elif r==16:form=f'{L}14+{L}11-{L}15'
+            elif r==19:form="'Actuals'!$D$8" if m==0 else f'{P}25'
+            elif r==24:form=f'{L}23*{L}18/12'
+            elif r==25:form=f'{L}19+{L}20-{L}21+{L}22-{L}24'
             elif r in sums:
                 ns=names[2:6] if r in [9,10,11,12] else names[2:7]
                 form='+'.join(f"'{n}'!{L}{sums[r]}" for n in ns)
