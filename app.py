@@ -287,12 +287,17 @@ else:
     st.markdown('[Business-model reference: Embark Student Plan, June 2025 financial statements, Note 8](https://www.embark.ca/wp-content/uploads/2026/03/Embark-Student-Plan-FS-30Jun2025-English.pdf). Used to confirm the fee structure only; all demo operating assumptions are invented.')
 
 st.divider()
-if st.button('Prepare auditable Excel model',key='prepare_excel'):
-    from excel_export import build_excel
-    with st.spinner('Building linked Excel formulas…'):
-        excel_data=build_excel(d,channels,discount/100)
-    st.download_button('Download Excel model (.xlsx)',excel_data,'Embark-revenue-model.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    st.caption('Editable assumptions, channel builds, visible cohort formulas and reconciliation checks. This download reflects the assumptions above.')
+from functools import partial
+from excel_export import build_excel
+st.download_button(
+    'Download Excel model (.xlsx)',
+    data=partial(build_excel, type(d)(**asdict(d)), channels.copy(deep=True), discount/100),
+    file_name='Embark-revenue-model.xlsx',
+    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    key='download_excel', on_click='ignore',
+    help='Generates your current scenario with auditable formulas, then downloads automatically.',
+)
+st.caption('Editable assumptions, channel builds and linked formulas. Allow about 15 seconds for your download to start.')
 out=io.BytesIO()
 import zipfile
 with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
