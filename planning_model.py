@@ -40,9 +40,6 @@ class Drivers:
     fee: float = .0165               # user-selected management fee assumption
     annual_redemptions: float = .08
     annual_attrition: float = .02
-    fixed_opex: float = 180000.
-    service_cost: float = 2.
-    sales_cost: float = 40.
     opening_aum: float = 750000000.
     opening_accounts: float = 30000.
 
@@ -51,8 +48,8 @@ BASE = Drivers()
 PRESETS = {
     'Base forecast': {},
     'Shift $20k to search': {'shift': 20000.},
-    'Fix conversion': {'close_lift': .03, 'fixed_opex': 190000.},
-    'Growth investment': {'spend_change': .20, 'close_lift': .01, 'fixed_opex': 200000.},
+    'Fix conversion': {'close_lift': .03},
+    'Growth investment': {'spend_change': .20, 'close_lift': .01},
     'Downside': {'lead_lift': -.15, 'annual_return': -.08, 'contribution_lift': -.10},
 }
 
@@ -123,34 +120,30 @@ def forecast(d=BASE, budget=False, months=60, channels=None):
         revenue = fee_base * p.fee / 12
         end_aum = aum + contributions - redemptions + market - revenue
         end_accounts = accounts - lost + new
-        service = (accounts + .5 * (new - lost)) * p.service_cost
-        sales = new * p.sales_cost
         marketing = ch.Spend.sum()
-        opex = marketing + service + sales + p.fixed_opex
         rows.append(dict(Month=ch.Month.iloc[0], Period='Budget' if budget else ('Illustrative actual' if actual else 'Forecast'),
             Impressions=ch.Impressions.sum(), Leads=ch.Leads.sum(), Opportunities=ch.Opportunities.sum(),
             Funded_accounts=new, Beginning_accounts=accounts, Account_exits=lost, Active_accounts=end_accounts,
             Beginning_AUM=aum, Contributions=contributions, Redemptions=redemptions, Market_return=market,
             Fee_base=fee_base, Ending_AUM=end_aum, Revenue=revenue, Marketing=marketing,
-            Service_cost=service, Sales_cost=sales, Fixed_opex=p.fixed_opex, Opex=opex,
-            Operating_contribution=revenue-opex, CAC=marketing/new if new else np.nan))
+            Revenue_less_marketing=revenue-marketing, CAC=marketing/new if new else np.nan))
         aum, accounts, recurring = end_aum, end_accounts, retained_recurring + new_recurring
     return pd.DataFrame(rows), pd.concat(frames, ignore_index=True)
 
 
 def unit_economics(d=BASE, month=6, years=10, discount=.10, channels=None):
-    """120-month discounted cohort contribution per newly funded account.
+    """Discounted lifetime fee revenue per newly funded account.
 
-    Includes fee revenue less ongoing account service, with attrition and asset
-    withdrawals. Excludes acquisition costs from LTV; fully loaded CAC includes
-    channel spend plus variable sales cost. No terminal value or overhead allocation.
+    Includes modeled fee revenue with account lifetime and asset withdrawals.
+    CAC is channel spend per funded account. No service, sales or overhead costs
+    are modeled; revenue LTV and revenue payback are not profit measures.
     """
     ch = channel_month(month, d, channels=channels)
     out = []
     for _, r in ch.iterrows():
         balance, active = 0., 1.
         pv = undiscounted = revenue_total = 0.
-        cac = r.CAC + d.sales_cost
+        cac = r.CAC
         payback = None
         life = int(round(r['Lifetime years'] * 12)) if channels is not None else years * 12
         for m in range(life):
@@ -159,7 +152,7 @@ def unit_economics(d=BASE, month=6, years=10, discount=.10, channels=None):
             withdrawal = balance * (1 - (1 - d.annual_redemptions) ** (1 / 12))
             growth = balance * ((1 + d.annual_return) ** (1 / 12) - 1)
             revenue = (balance + .5 * (contribution - withdrawal + growth)) * d.fee / 12
-            margin = revenue - active * d.service_cost * (.5 if channels is not None and m == 0 else 1.)
+            margin = revenue
             pv += margin / ((1 + discount) ** ((m + 1) / 12))
             undiscounted += margin
             revenue_total += revenue
@@ -169,9 +162,9 @@ def unit_economics(d=BASE, month=6, years=10, discount=.10, channels=None):
             if channels is None:
                 active *= (1 - d.annual_attrition) ** (1 / 12)
         out.append({'Channel': r.Channel, 'Funded accounts': r['Funded accounts'],
-            'Media CAC': r.CAC, 'Loaded CAC': cac, '10-year LTV': pv,
+            'Media CAC': r.CAC, 'Acquisition CAC': cac, '10-year LTV': pv,
             'Lifetime years': life / 12, 'Monthly ARPA': revenue_total / life,
-            'Lifetime fee revenue': revenue_total, 'Contribution LTV': pv,
+            'Lifetime fee revenue': revenue_total, 'Revenue LTV': pv,
             'LTV / CAC': pv / cac if cac > 0 else np.nan,
             'Payback months': float(payback) if payback else np.nan})
     return pd.DataFrame(out)
@@ -216,15 +209,13 @@ def direct_forecast(d, channels, budget=False, months=60):
         new=ch['Funded accounts'].sum()
         end_n=sum(c['n'] for c in cohorts)
         average_n=beginning_n-exits+.5*new
-        service=average_n*p.service_cost; sales=new*p.sales_cost
-        marketing=ch.Spend.sum(); opex=marketing+service+sales+p.fixed_opex
+        marketing=ch.Spend.sum()
         rows.append(dict(Month=ch.Month.iloc[0],Period='Budget' if budget else 'Illustrative actual' if actual else 'Forecast',
             Impressions=ch.Impressions.sum(),Leads=ch.Leads.sum(),Opportunities=ch.Opportunities.sum(),
             Funded_accounts=new,Beginning_accounts=beginning_n,Account_exits=exits,Active_accounts=end_n,
             Beginning_AUM=beginning,Contributions=contributions,Redemptions=redemptions,Market_return=market,
             Fee_base=fee_base,Ending_AUM=sum(c['balance'] for c in cohorts),Revenue=revenue,Marketing=marketing,
-            Service_cost=service,Sales_cost=sales,Fixed_opex=p.fixed_opex,Opex=opex,
-            Operating_contribution=revenue-opex,CAC=marketing/new if new else np.nan,
+            Revenue_less_marketing=revenue-marketing,CAC=marketing/new if new else np.nan,
             Monthly_ARPA=revenue/average_n if average_n else np.nan))
     return pd.DataFrame(rows),pd.concat(frames,ignore_index=True)
 
@@ -255,7 +246,7 @@ def funnel_bridge(budget_channels, actual_channels):
 
 def annual(f):
     g = f.assign(Year=f.Month.dt.year).groupby('Year')
-    a = g[['Funded_accounts', 'Contributions', 'Revenue', 'Marketing', 'Opex', 'Operating_contribution']].sum()
+    a = g[['Funded_accounts', 'Contributions', 'Revenue', 'Marketing', 'Revenue_less_marketing']].sum()
     a['Ending_AUM'] = g.Ending_AUM.last()
     a['CAC'] = a.Marketing / a.Funded_accounts
     return a

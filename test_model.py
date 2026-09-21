@@ -11,7 +11,7 @@ def test_financial_reconciliations_and_fixed_actuals(case):
     pd.testing.assert_frame_equal(f.iloc[:6],baseline.iloc[:6])
     np.testing.assert_allclose(f.Ending_AUM, f.Beginning_AUM+f.Contributions-f.Redemptions+f.Market_return-f.Revenue)
     np.testing.assert_allclose(f.Active_accounts,f.Beginning_accounts-f.Account_exits+f.Funded_accounts)
-    np.testing.assert_allclose(f.Operating_contribution,f.Revenue-f.Opex)
+    np.testing.assert_allclose(f.Revenue_less_marketing,f.Revenue-f.Marketing)
     np.testing.assert_allclose(f.Beginning_AUM.iloc[1:],f.Ending_AUM.iloc[:-1])
     np.testing.assert_allclose(f.Funded_accounts,c.groupby('Month')['Funded accounts'].sum())
     assert (f.Ending_AUM>0).all()
@@ -37,8 +37,21 @@ def test_zero_fee_zero_forecast_revenue_and_no_contribution_as_revenue():
     assert (f.Revenue.iloc[6:]==0).all()
     assert (f.Contributions.iloc[6:]>0).all()
     e=unit_economics(Drivers(fee=0))
-    assert (e['10-year LTV']<0).all()
+    assert (e['Revenue LTV']==0).all()
     assert e['Payback months'].isna().all()
+
+
+def test_revenue_only_economics_and_export_schema():
+    from dataclasses import asdict
+    from planning_model import CHANNELS
+    d=Drivers()
+    f,_=forecast(d,channels=CHANNELS)
+    e=unit_economics(d,channels=CHANNELS,discount=0)
+    np.testing.assert_allclose(e['Revenue LTV'],e['Lifetime fee revenue'])
+    np.testing.assert_allclose(e['Acquisition CAC'],e['Media CAC'])
+    np.testing.assert_allclose(f.Revenue_less_marketing,f.Revenue-f.Marketing)
+    assert not {'Service_cost','Sales_cost','Fixed_opex','Opex','Operating_contribution'} & set(f.columns)
+    assert not {'service_cost','sales_cost','fixed_opex'} & set(asdict(d))
 
 
 def test_conversion_and_cashflow_sensitivity():
@@ -67,7 +80,7 @@ def test_direct_inputs_lifetime_and_arpa():
     se=unit_economics(channels=c)
     assert shorter.Active_accounts.iloc[-1]<f.Active_accounts.iloc[-1]
     assert shorter.Revenue.iloc[-1]<f.Revenue.iloc[-1]
-    assert (se['Contribution LTV']<e['Contribution LTV']).all()
+    assert (se['Revenue LTV']<e['Revenue LTV']).all()
     assert Drivers().fee==.0165
 
 

@@ -61,3 +61,5 @@ The palette uses violet, indigo and pale lavender inspired by Embark's public si
 ## Hosting
 
 See [DEPLOY.md](DEPLOY.md) for GitHub and Streamlit Community Cloud setup. Publish `app.py`, the calculation modules, `requirements.txt` and `.streamlit/config.toml`. Keep secrets out of GitHub. See the [official deployment guide](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy).
+
+Revenue-only scope: service, sales and fixed overhead assumptions are removed. Revenue less marketing equals management-fee revenue minus channel spend; it is not operating profit. Revenue LTV discounts lifetime management fees without business-cost deductions. Pilot NPV subtracts only the incremental pilot cost. These definitions apply to the dashboard, AI scenarios and downloads.

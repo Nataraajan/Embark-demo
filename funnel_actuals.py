@@ -156,12 +156,12 @@ def render_actuals(d,channels,discount,chart,money):
     assumptions=channels[channels.Channel.eq(channel)].iloc[0]
     economics=unit_economics(d,channels=channels,discount=discount/100).set_index('Channel').loc[channel]
     revenue=extra*first_year_fee(assumptions,d)
-    net_value=extra*(economics['Contribution LTV']-d.sales_cost)-cost
+    net_value=extra*economics['Revenue LTV']-cost
     c=st.columns(3)
     c[0].metric('Potential additional funded accounts',f'{extra:,.1f}')
     c[1].metric('First 12 months’ additional fee revenue',money(revenue))
-    c[2].metric('Lifetime contribution NPV less pilot',money(net_value))
-    st.caption(f'Selected final stage: next-stage contacts × positive funding-conversion gap. Selected entry stage: entry contacts × positive next-stage conversion gap × observed funding rate. Only one stage changes at a time. First-year revenue is the 12 months after acquisition, not the calendar-year forecast. Fee {d.fee:.2%}; customer lifetime {assumptions["Lifetime years"]:.0f} years; discount {discount:.1f}%. Economics use the editable channel assumptions above. NPV deducts service costs, incremental sales cost and pilot cost; existing media spend is unchanged. This estimate is not automatically booked into the forecast.')
+    c[2].metric('Lifetime revenue NPV less pilot',money(net_value))
+    st.caption(f'Selected final stage: next-stage contacts × positive funding-conversion gap. Selected entry stage: entry contacts × positive next-stage conversion gap × observed funding rate. Only one stage changes at a time. First-year revenue is the 12 months after acquisition, not the calendar-year forecast. Fee {d.fee:.2%}; customer lifetime {assumptions["Lifetime years"]:.0f} years; discount {discount:.1f}%. Economics use the editable channel assumptions above. Revenue NPV deducts only pilot cost; existing channel spend is unchanged. Business costs are excluded, so this is not profit. This estimate is not automatically booked into the forecast.')
     action=('Review follow-up speed, application completion and funding friction with Sales; test a revised follow-up sequence.' if stage=='Opportunity → funded' else 'Review targeting, source quality and qualification rules with Marketing; test a narrower audience or revised enquiry form.')
     st.success(f'Proposed pilot: {action} Measure the selected stage against a comparable control cohort over the same 60-day window. Validate contribution quality and incremental conversion before scaling.')
     with st.expander('Audit the simulated data and cohort maturity'):

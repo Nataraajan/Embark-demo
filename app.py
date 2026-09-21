@@ -138,32 +138,28 @@ with st.expander('Edit assumptions · actual monthly amounts and conversion rate
     fee=c[0].number_input('Annual management fee (%)',0.,5.,1.65,.05,key='input_fee')
     returns=c[1].number_input('Annual investment return (%)',-40.,30.,4.,1.,key='input_return')
     withdrawals=c[2].number_input('Annual partial withdrawals (%)',0.,90.,8.,1.,key='input_withdrawals',help='Partial withdrawals while accounts remain open. Remaining assets also leave when customer lifetime ends.')
-    fixed=c[3].number_input('Fixed operating costs ($ / month)',0.,10000000.,180000.,1000.,key='input_fixed')
-    c=st.columns(3)
-    service=c[0].number_input('Service cost ($ / account / month)',0.,1000.,2.,1.,key='input_service')
-    sales_cost=c[1].number_input('Sales cost ($ / funded account)',0.,10000.,40.,5.,key='input_sales')
-    discount=c[2].number_input('Annual LTV discount rate (%)',0.,30.,10.,1.,key='input_discount')
+    discount=c[3].number_input('Annual LTV discount rate (%)',0.,30.,10.,1.,key='input_discount')
     st.caption('Lifetime is modeled as a fixed planning duration for each new cohort, with full account closure at its end. The same lifetime drives the forecast and LTV. Opening accounts retain their original illustrative 10-year lifetime.')
 
 channels=pd.DataFrame(inputs,columns=CHANNELS.columns)
-d=Drivers(fee=fee/100,annual_return=returns/100,annual_redemptions=withdrawals/100,fixed_opex=fixed,service_cost=service,sales_cost=sales_cost)
+d=Drivers(fee=fee/100,annual_return=returns/100,annual_redemptions=withdrawals/100)
 f,ch=forecast(d,channels=channels); b,bc=forecast(budget=True,channels=CHANNELS); base,_=forecast(channels=CHANNELS)
 eco=unit_economics(d,channels=channels,discount=discount/100)
 
 render_chat(d,channels,discount/100,f,eco,page)
 
 y=f.iloc[:12]; by=b.iloc[:12]; fy=f.iloc[6:12]; baseline=base.iloc[6:12]
-rev=y.Revenue.sum(); op=y.Operating_contribution.sum(); sales=y.Funded_accounts.sum(); cac=y.Marketing.sum()/sales
+rev=y.Revenue.sum(); op=y.Revenue_less_marketing.sum(); sales=y.Funded_accounts.sum(); cac=y.Marketing.sum()/sales
 
 if page=='Executive overview':
     st.markdown('<div class="eyebrow">2026 outlook · six months actual + six months forecast</div>', unsafe_allow_html=True)
     cards = card('Management-fee revenue',money(rev),'Full-year outlook · CAD',f'{money(rev-by.Revenue.sum())} vs budget',y.Revenue,True,rev>=by.Revenue.sum())
-    cards += card('Operating contribution',money(op),'After modeled GTM, service and fixed costs',f'{money(op-by.Operating_contribution.sum())} vs budget',y.Operating_contribution,favorable=op>=by.Operating_contribution.sum())
+    cards += card('Revenue less marketing',money(op),'Fee revenue minus channel spend; excludes other business costs',f'{money(op-by.Revenue_less_marketing.sum())} vs budget',y.Revenue_less_marketing,favorable=op>=by.Revenue_less_marketing.sum())
     cards += card('New funded accounts',f'{sales:,.0f}','Full-year acquisitions',f'{sales/by.Funded_accounts.sum()-1:+.1%} vs budget',y.Funded_accounts,favorable=sales>=by.Funded_accounts.sum())
     cards += card('Acquisition cost',money(cac),'Marketing spend / funded accounts',f'{money(cac-by.Marketing.sum()/by.Funded_accounts.sum())} vs budget',y.CAC,favorable=cac<=by.Marketing.sum()/by.Funded_accounts.sum())
     st.markdown('<div class="cards">'+cards+'</div>',unsafe_allow_html=True)
     social=eco[eco.Channel=='Paid social'].iloc[0]; best=eco.sort_values('LTV / CAC',ascending=False).iloc[0]
-    st.markdown(f'<div class="brief"><strong>Decision to take into the planning meeting</strong><br>Test a limited budget shift before scaling acquisition. Paid social returns <strong>{social["LTV / CAC"]:.1f}×</strong> modeled contribution LTV / loaded CAC; {best.Channel.lower()} leads at <strong>{best["LTV / CAC"]:.1f}×</strong>. Validate channel capacity and cohort quality before treating these average economics as marginal returns.</div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="brief"><strong>Decision to take into the planning meeting</strong><br>Test a limited budget shift before scaling acquisition. Paid social returns <strong>{social["LTV / CAC"]:.1f}×</strong> modeled revenue LTV / acquisition CAC; {best.Channel.lower()} leads at <strong>{best["LTV / CAC"]:.1f}×</strong>. Validate channel capacity and cohort quality before treating these average economics as marginal returns.</div>',unsafe_allow_html=True)
     left,right=st.columns([1.55,1])
     with left,st.container(border=True):
         st.subheader('Fee revenue: budget to rolling forecast')
@@ -176,8 +172,8 @@ if page=='Executive overview':
     with right,st.container(border=True):
         st.subheader('Channel economics')
         fig=go.Figure(go.Bar(x=eco['LTV / CAC'],y=eco.Channel,orientation='h',marker_color=COLORS,text=eco['LTV / CAC'].map(lambda v:f'{v:.1f}×'),textposition='outside'))
-        fig.add_vline(x=1,line_dash='dot',line_color=GRAY);fig.update_xaxes(title='Lifetime contribution LTV / loaded CAC');chart(fig)
-        st.caption('Includes account service costs; excludes fixed overhead. LTV follows the editable lifetime for each channel; it is not observed performance.')
+        fig.add_vline(x=1,line_dash='dot',line_color=GRAY);fig.update_xaxes(title='Revenue LTV / acquisition CAC');chart(fig)
+        st.caption('Revenue LTV excludes business costs and is not a profit measure. LTV follows the editable lifetime for each channel; it is not observed performance.')
     st.info('Use Funnel performance to diagnose simulated actuals by channel and test the value of closing a conversion gap.')
 
 elif page=='Funnel performance':
@@ -210,27 +206,27 @@ elif page=='Funnel & channel ROI':
     st.subheader('Channel scorecard')
     st.dataframe(g.style.format({'Spend':'${:,.0f}','Leads':'{:,.0f}','Opportunities':'{:,.0f}','Funded accounts':'{:,.0f}','Cost / lead':'${:,.0f}','Lead → funded':'{:.1%}','CAC':'${:,.0f}'}),use_container_width=True)
     st.subheader('Forward-looking unit economics · current scenario')
-    st.dataframe(eco.drop(columns=['10-year LTV']).set_index('Channel').style.format({'Funded accounts':'{:,.0f}','Media CAC':'${:,.0f}','Loaded CAC':'${:,.0f}','Contribution LTV':'${:,.0f}','Monthly ARPA':'${:,.2f}','Lifetime fee revenue':'${:,.0f}','Lifetime years':'{:.0f}','LTV / CAC':'{:.2f}×','Payback months':'{:.0f}'},na_rep='Not reached'),use_container_width=True)
-    st.caption('Monthly ARPA = total cohort fee revenue ÷ lifetime months, per original account. Lifetime fee revenue = ARPA × lifetime months. Contribution LTV discounts fees less servicing costs using your chosen rate. Payback includes media and variable sales acquisition costs; blank means not reached within the selected lifetime.')
+    st.dataframe(eco.drop(columns=['10-year LTV']).set_index('Channel').style.format({'Funded accounts':'{:,.0f}','Media CAC':'${:,.0f}','Acquisition CAC':'${:,.0f}','Revenue LTV':'${:,.0f}','Monthly ARPA':'${:,.2f}','Lifetime fee revenue':'${:,.0f}','Lifetime years':'{:.0f}','LTV / CAC':'{:.2f}×','Payback months':'{:.0f}'},na_rep='Not reached'),use_container_width=True)
+    st.caption('Monthly ARPA = total cohort fee revenue ÷ lifetime months, per original account. Lifetime fee revenue = ARPA × lifetime months. Revenue LTV discounts management-fee revenue using your chosen rate. Revenue payback compares cumulative fees with channel acquisition spend; blank means not reached within the selected lifetime.')
 
 elif page=='Scenario lab':
-    lift=fy.Funded_accounts.sum()-baseline.Funded_accounts.sum(); cost=fy.Opex.sum()-baseline.Opex.sum(); gain=fy.Revenue.sum()-baseline.Revenue.sum()
+    lift=fy.Funded_accounts.sum()-baseline.Funded_accounts.sum(); cost=fy.Marketing.sum()-baseline.Marketing.sum(); gain=fy.Revenue.sum()-baseline.Revenue.sum()
     st.markdown('<div class="eyebrow">July–December decision impact · versus unchanged base forecast</div>',unsafe_allow_html=True)
     cols=st.columns(4)
-    for c,label,value in zip(cols,['Additional funded accounts','Incremental fee revenue','Incremental operating cost','Operating contribution change'],[f'{lift:+,.0f}',money(gain),money(cost),money(gain-cost)]): c.metric(label,value)
-    st.markdown(f'<div class="brief"><strong>Timing matters.</strong> This scenario changes six-month fee revenue by {money(gain)} and operating contribution by {money(gain-cost)}. Acquisition spend arrives before the recurring fee stream. Use cohort payback alongside the annual P&L to judge a growth investment.</div>',unsafe_allow_html=True)
+    for c,label,value in zip(cols,['Additional funded accounts','Incremental fee revenue','Incremental channel spend','Revenue less marketing change'],[f'{lift:+,.0f}',money(gain),money(cost),money(gain-cost)]): c.metric(label,value)
+    st.markdown(f'<div class="brief"><strong>Timing matters.</strong> This scenario changes six-month fee revenue by {money(gain)} and revenue less marketing by {money(gain-cost)}. Acquisition spend arrives before the recurring fee stream. Use cohort payback alongside the annual P&L to judge a growth investment.</div>',unsafe_allow_html=True)
     st.subheader('Your monthly funnel · assumptions to outcomes')
     preview=ch[ch.Month.eq(pd.Timestamp('2026-07-01'))].set_index('Channel')
     preview['Entry stage']=[stage_labels(n)[0] for n in preview.index]
     preview['Next stage']=[stage_labels(n)[1] for n in preview.index]
     st.dataframe(preview[['Entry stage','Next stage','Spend','Impressions','Visits','Leads','Opportunities','Funded accounts','CAC']].style.format({n:'{:,.1f}' for n in ['Spend','Impressions','Visits','Leads','Opportunities','Funded accounts','CAC']},na_rep='—'),use_container_width=True)
     st.subheader('Customer economics · linked to your lifetime assumptions')
-    st.dataframe(eco[['Channel','Lifetime years','Monthly ARPA','Lifetime fee revenue','Contribution LTV','Loaded CAC','LTV / CAC','Payback months']].set_index('Channel').style.format('{:,.2f}',na_rep='—'),use_container_width=True)
-    st.caption('ARPA is derived, not an extra revenue assumption: assets per account × management fee. Monthly ARPA shown here is the average over the customer lifetime. Lifetime fee revenue = monthly ARPA × 12 × lifetime years. Contribution LTV deducts servicing and discounts future cash flows.')
+    st.dataframe(eco[['Channel','Lifetime years','Monthly ARPA','Lifetime fee revenue','Revenue LTV','Acquisition CAC','LTV / CAC','Payback months']].set_index('Channel').style.format('{:,.2f}',na_rep='—'),use_container_width=True)
+    st.caption('ARPA is derived, not an extra revenue assumption: assets per account × management fee. Monthly ARPA shown here is the average over the customer lifetime. Lifetime fee revenue = monthly ARPA × 12 × lifetime years. Revenue LTV discounts future management fees; it excludes business costs.')
     fig=go.Figure()
-    fig.add_scatter(x=f.Month,y=f.Operating_contribution.cumsum(),name='Current scenario',line=dict(color=TEAL,width=3))
-    fig.add_scatter(x=base.Month,y=base.Operating_contribution.cumsum(),name='Base forecast',line=dict(color=GRAY,dash='dot'))
-    fig.update_yaxes(title='Cumulative modeled operating contribution',tickprefix='$',tickformat='~s');chart(fig)
+    fig.add_scatter(x=f.Month,y=f.Revenue_less_marketing.cumsum(),name='Current scenario',line=dict(color=TEAL,width=3))
+    fig.add_scatter(x=base.Month,y=base.Revenue_less_marketing.cumsum(),name='Base forecast',line=dict(color=GRAY,dash='dot'))
+    fig.update_yaxes(title='Cumulative modeled revenue less marketing',tickprefix='$',tickformat='~s');chart(fig)
     st.caption('Linear channel scaling is a planning approximation. A measured pilot should establish marginal CAC, saturation and incrementality before reallocating at scale.')
 
 elif page=='Forecast & variance':
@@ -242,14 +238,14 @@ elif page=='Forecast & variance':
     weak=bridge.idxmin()
     st.markdown(f'<div class="brief"><strong>Management commentary</strong><br>H1 funded accounts were {end-start:+,.0f} versus budget ({end/start-1:+.1%}). The largest adverse driver was {weak.lower()} ({bridge.min():+,.0f} accounts). Investigate the social cohort with Marketing and Sales, test a conversion intervention, then carry the measured improvement into the rolling forecast.</div>',unsafe_allow_html=True)
     st.caption('Exact sequential bridge: replace spend → media efficiency → lead capture → qualification → close conversion. Interaction effects depend on this order; attribution is not proof of causation.')
-    metrics=['Revenue','Marketing','Service_cost','Sales_cost','Fixed_opex','Operating_contribution']
+    metrics=['Revenue','Marketing','Revenue_less_marketing']
     var=pd.DataFrame({'H1 budget':b.iloc[:6][metrics].sum(),'H1 simulated actual':f.iloc[:6][metrics].sum()});var['Variance']=var.iloc[:,1]-var.iloc[:,0]
     st.dataframe(var.rename_axis('CAD').style.format('${:,.0f}'),use_container_width=True)
     st.caption('Variance = actual minus budget; a positive cost variance is adverse.')
-    st.subheader('Monthly revenue & operating plan')
+    st.subheader('Monthly revenue & acquisition plan')
     year=st.selectbox('Schedule year',list(range(2026,2031)))
     sf=f[f.Month.dt.year.eq(year)].copy(); sf['Month']=sf.Month.dt.strftime('%b %Y')
-    measures=['Funded_accounts','Active_accounts','Monthly_ARPA','Beginning_AUM','Contributions','Redemptions','Market_return','Ending_AUM','Revenue','Marketing','Service_cost','Sales_cost','Fixed_opex','Operating_contribution']
+    measures=['Funded_accounts','Active_accounts','Monthly_ARPA','Beginning_AUM','Contributions','Redemptions','Market_return','Ending_AUM','Revenue','Marketing','Revenue_less_marketing']
     table=sf.set_index('Month')[measures].T;table.index=table.index.str.replace('_',' ')
     st.dataframe(table.style.format('{:,.0f}'),use_container_width=True,height=535)
     st.caption('Financial rows in CAD; funded and active accounts are counts. 2026 Jan–Jun are simulated actuals, all subsequent periods are forecast.')
@@ -262,7 +258,7 @@ else:
 2. **Contributions:** new initial funding + recurring contributions from retained accounts + half a monthly contribution from new accounts.
 3. **Assets:** beginning AUM + contributions − withdrawals + market movement − modeled fees = ending AUM.
 4. **Revenue:** [beginning AUM + ½ × (contributions − withdrawals + market movement)] × annual management fee ÷ 12.
-5. **Operating contribution:** fee revenue − marketing − account service − variable sales cost − fixed operating costs.
+5. **Revenue less marketing:** fee revenue − channel spend. Other business costs are excluded; this is not operating profit.
 ''')
     st.info('Management fee starts at your requested 1.65%. Revenue is modeled before any separate rebate or tax adjustments. Customer deposits build assets; they are not corporate revenue.')
     st.subheader('Your active channel assumptions')
@@ -272,7 +268,7 @@ else:
 
 **Lifetime and assets:** new accounts remain for their selected lifetime, then close and withdraw remaining assets. Partial withdrawals and investment returns use your shared controls. No separate attrition rate is layered on top. No hidden budget growth or seasonality is applied.
 
-**ARPA and LTV:** monthly ARPA is average lifetime fee revenue per account per month. Lifetime fee revenue = ARPA × lifetime months. Contribution LTV discounts monthly fees less account servicing, over the selected lifetime, with no terminal value. Loaded CAC adds variable sales cost to media CAC. Acquisition cost and fixed overhead are excluded from contribution LTV to keep the LTV/CAC comparison consistent. The forecast schedule's monthly ARPA is that calendar month's revenue divided by its average active accounts; its older account mix differs from a newly acquired cohort.
+**ARPA and LTV:** monthly ARPA is average lifetime fee revenue per account per month. Lifetime fee revenue = ARPA × lifetime months. Revenue LTV discounts monthly management fees over the selected lifetime, with no terminal value. Acquisition CAC is channel spend divided by funded accounts. Service, sales and fixed overhead costs are not modeled. Revenue payback indicates fee recovery of acquisition spend, not profitability. The forecast schedule's monthly ARPA is that calendar month's revenue divided by its average active accounts; its older account mix differs from a newly acquired cohort.
 
 **Revenue timing:** same-month funnel conversion and half-month new contributions are explicit simplifications. A production version should estimate lead-to-funding lags, account-level retention, contribution profiles and graduation withdrawals.
 ''')
