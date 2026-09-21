@@ -52,9 +52,9 @@ The existing page layout and four channel groups are retained. Paid search/socia
 
 ## AI model chat
 
-Open **Ask AI** on any page to ask about results, metric definitions or a scenario. Claude receives current assumptions, summarized forecast results and simulated diagnostic cohorts. Numeric scenario questions use the same financial engine as the dashboard and display auditable comparison results. Chat previews never overwrite inputs. Conversation history belongs to the current session; previous answers reflect inputs at the time asked.
+Open the floating **Ask AI** button in the bottom-right on any page to ask about results, metric definitions or a scenario. Claude receives current assumptions, summarized forecast results and simulated diagnostic cohorts. Numeric scenario questions use the same financial engine as the dashboard and display auditable comparison results. Chat previews never overwrite inputs. Conversation history belongs to the current session; previous answers reflect inputs at the time asked.
 
-Configure `ANTHROPIC_API_KEY` in the environment or Streamlit secrets. The default model is Claude Haiku 4.5; Model ID can be edited in Chat connection. Alternatively enter a session-only key in its password field. API charges are separate from ChatGPT/Codex credits. No key is included in downloads or this repository.
+Configure `ANTHROPIC_API_KEY` in the environment or Streamlit secrets. The default model is Claude Haiku 4.5; configure ANTHROPIC_MODEL in Streamlit secrets to change it. Saved Streamlit secrets take priority over environment variables. Connection settings are not shown to visitors. API charges are separate from ChatGPT/Codex credits. No key is included in downloads or this repository.
 
 The palette uses violet, indigo and pale lavender inspired by Embark's public site. This is an independent illustrative demo.
 

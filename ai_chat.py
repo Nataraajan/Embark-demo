@@ -113,9 +113,9 @@ def api_message(payload,key):
         with urlopen(req,timeout=45) as response: return json.load(response)
     except HTTPError as exc:
         # Never print request headers, credentials or raw provider response bodies.
-        raise RuntimeError({401:'The API key was not accepted. Update the chat connection.',
+        raise RuntimeError({401:'The assistant could not authenticate. The app owner should check the saved Streamlit secret.',
             403:'This API key does not have permission for this request.',
-            404:'The configured AI model is unavailable. Update the model ID.',
+            404:'The assistant model is unavailable. The app owner should check the server configuration.',
             429:'The AI service is rate-limited or out of credits. Try again later.'}.get(exc.code,f'AI service returned HTTP {exc.code}. Check the connection or available credits.')) from None
     except (URLError,TimeoutError):
         raise RuntimeError('The AI service could not be reached or timed out. Your model inputs are unchanged.') from None
@@ -150,31 +150,53 @@ def answer(question,history,context,d,channels,discount,key,model,transport=api_
     raise RuntimeError('The scenario needed too many calculation steps. Try one specific change at a time.')
 
 
+def server_setting(name,default=''):
+    try:
+        value=st.secrets.get(name,'')
+        if value: return str(value).strip()
+    except (FileNotFoundError,st.errors.StreamlitSecretNotFoundError):
+        pass
+    return os.getenv(name,default).strip()
+
+
+def toggle_chat():
+    st.session_state['ai_open']=not st.session_state.get('ai_open',False)
+
+
 def render_chat(d,channels,discount,f,eco,page):
-    with st.expander('Ask AI · explain results or test a scenario',expanded=False):
-        st.caption('Claude answers using the current model and simulated funnel data. Scenario calculations run through the financial engine and are previews; they do not change your inputs. Questions and summarized model data are sent to Anthropic when you ask.')
-        key=os.getenv('ANTHROPIC_API_KEY','')
-        if not key:
-            try: key=st.secrets.get('ANTHROPIC_API_KEY','')
-            except Exception: pass
-        with st.expander('Chat connection',expanded=not bool(key)):
-            if key: st.caption('Server API key configured. Credentials are not included in downloads.')
-            entered=st.text_input('Anthropic API key (optional override)',type='password',key='ai_key_override')
-            model=st.text_input('Model ID',value=os.getenv('ANTHROPIC_MODEL','claude-haiku-4-5-20251001'),key='ai_model')
-            key=entered.strip() or key
-        st.markdown('Try: “Why is paid social CAC rising?” · “What if search spend is $150,000?” · “Explain ARPA versus LTV.”')
+    st.markdown('''<style>
+    .st-key-ai_launcher{position:fixed!important;bottom:24px;right:24px;width:150px!important;z-index:999990}
+    .st-key-ai_launcher button{width:100%;border-radius:28px!important;background:#594ff0!important;color:white!important;border:none;box-shadow:0 6px 24px #1c146330}
+    .st-key-ai_launcher button p{color:white!important;font-weight:600}
+    .st-key-ai_panel{position:fixed!important;bottom:84px;right:24px;width:440px!important;max-width:calc(100vw - 32px);max-height:calc(100dvh - 110px);overflow-y:auto;z-index:999989;background:#fff;border:1px solid #d9d3f1;border-radius:18px;padding:20px;box-shadow:0 12px 48px #1c14632b;gap:10px}
+    .st-key-ai_panel [data-testid="stChatMessage"]{padding:12px}
+    .st-key-ai_panel [data-testid="stChatInput"]{position:relative;bottom:auto}
+    @media(max-width:600px){.st-key-ai_panel{right:16px;bottom:76px;padding:14px}.st-key-ai_launcher{right:16px;bottom:16px}}
+    </style>''',unsafe_allow_html=True)
+    opened=st.session_state.get('ai_open',False)
+    with st.container(key='ai_launcher'):
+        st.button('Close chat' if opened else '✦ Ask AI',key='ai_toggle',on_click=toggle_chat)
+    if not opened: return
+    key=server_setting('ANTHROPIC_API_KEY')
+    model=server_setting('ANTHROPIC_MODEL','claude-haiku-4-5-20251001')
+    with st.container(key='ai_panel'):
+        st.markdown('**Your planning assistant**')
+        st.caption('Explain results or test a scenario. Previews leave your assumptions unchanged.')
+        st.caption('Questions and summarized model data are sent to Anthropic.')
         if st.button('Clear chat',key='ai_clear'): st.session_state['ai_history']=[]
         history=st.session_state.setdefault('ai_history',[])
-        for message in history:
-            with st.chat_message(message['role']):
-                st.markdown(message['content'].replace('\\$', '$').replace('$', '\\$'))
-                if message.get('previews'):
-                    with st.expander('Calculated scenario details'):
-                        for preview in message['previews']:
-                            st.json({'inputs':preview['changes'],'financial':preview['financial_changes']})
-                            st.dataframe(pd.DataFrame(preview['periods']['H2 2026']).T.style.format('{:,.2f}'),use_container_width=True)
+        with st.container(height=300,key='ai_messages'):
+            if not history: st.markdown('Hi! Ask me **why a result changed**, or try **“What if search spend is $150,000?”**')
+            for message in history:
+                with st.chat_message(message['role']):
+                    st.markdown(message['content'].replace('\\$', '$').replace('$', '\\$'))
+                    if message.get('previews'):
+                        with st.expander('Calculated scenario details'):
+                            for preview in message['previews']:
+                                st.json({'inputs':preview['changes'],'financial':preview['financial_changes']})
+                                st.dataframe(pd.DataFrame(preview['periods']['H2 2026']).T.style.format('{:,.2f}'),use_container_width=True)
         question=st.chat_input('Ask about this model or a what-if scenario',key='model_chat',disabled=not bool(key))
-        if not key: st.info('Add an Anthropic API key in Chat connection to enable AI. The forecast works without it.')
+        if not key: st.info('The assistant is not connected yet. The app owner can enable it in Streamlit app settings. Your forecast is available.')
         if question:
             with st.chat_message('user'): st.markdown(question.replace('\\$', '$').replace('$', '\\$'))
             try:

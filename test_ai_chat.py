@@ -43,5 +43,10 @@ def test_chat_visible_without_network_call():
     from streamlit.testing.v1 import AppTest
     app=AppTest.from_file(str(Path(__file__).with_name('app.py'))).run(timeout=45)
     assert not app.exception
+    assert len(app.chat_input)==0
+    app.button(key='ai_toggle').click().run()
+    assert not app.exception
     assert len(app.chat_input)==1
-    assert app.text_input(key='ai_model').value
+    assert len(app.text_input)==0
+    app.button(key='ai_toggle').click().run()
+    assert len(app.chat_input)==0
