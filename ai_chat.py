@@ -165,13 +165,13 @@ def toggle_chat():
 
 def render_chat(d,channels,discount,f,eco,page):
     st.markdown('''<style>
-    .st-key-ai_launcher{position:fixed!important;bottom:24px;right:24px;width:150px!important;z-index:999990}
+    .st-key-ai_launcher{position:fixed!important;bottom:88px;right:24px;width:150px!important;z-index:999990}
     .st-key-ai_launcher button{width:100%;border-radius:28px!important;background:#594ff0!important;color:white!important;border:none;box-shadow:0 6px 24px #1c146330}
     .st-key-ai_launcher button p{color:white!important;font-weight:600}
-    .st-key-ai_panel{position:fixed!important;bottom:84px;right:24px;width:440px!important;max-width:calc(100vw - 32px);max-height:calc(100dvh - 110px);overflow-y:auto;z-index:999989;background:#fff;border:1px solid #d9d3f1;border-radius:18px;padding:20px;box-shadow:0 12px 48px #1c14632b;gap:10px}
+    .st-key-ai_panel{position:fixed!important;bottom:148px;right:24px;width:440px!important;max-width:calc(100vw - 32px);max-height:calc(100dvh - 174px);overflow-y:auto;z-index:999989;background:#fff;border:1px solid #d9d3f1;border-radius:18px;padding:20px;box-shadow:0 12px 48px #1c14632b;gap:10px}
     .st-key-ai_panel [data-testid="stChatMessage"]{padding:12px}
     .st-key-ai_panel [data-testid="stChatInput"]{position:relative;bottom:auto}
-    @media(max-width:600px){.st-key-ai_panel{right:16px;bottom:76px;padding:14px}.st-key-ai_launcher{right:16px;bottom:16px}}
+    @media(max-width:600px){.st-key-ai_panel{right:16px;bottom:140px;padding:14px}.st-key-ai_launcher{right:16px;bottom:80px}}
     </style>''',unsafe_allow_html=True)
     opened=st.session_state.get('ai_open',False)
     with st.container(key='ai_launcher'):
